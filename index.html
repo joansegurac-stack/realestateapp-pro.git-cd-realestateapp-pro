@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visor 3D iJewel — Configurador de materiales</title>
+
+  <!--
+    iJewel3D Viewer (webgi)
+    Cargamos el bundle del visor desde el CDN oficial de iJewel.
+    Si prefieres usar NPM en el futuro: npm i webgi  (ver docs.ijewel3d.com)
+  -->
+  <script type="module" src="https://releases.ijewel3d.com/libs/webgi-v0/bundle-0.22.0.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Mi joyería en 3D</h1>
+    <p>Gira la pieza, haz zoom y cambia los materiales en tiempo real.</p>
+  </header>
+
+  <main class="layout">
+    <!--
+      EL VISOR
+      - src: el bundle del visor (NO el modelo).
+      - environment: iluminación HDR (puedes usar la de iJewel o una propia).
+      - El modelo 3D se carga desde JS (ver app.js) para tener control total.
+      El configurador de materiales aparece automáticamente cuando el modelo
+      incluye el MaterialConfiguratorPlugin configurado en iJewel3D.
+    -->
+    <webgi-viewer
+      id="ijewel-viewer"
+      class="viewer"
+      src="https://releases.ijewel3d.com/libs/mini-viewer/0.6.8/bundle.nowebgi.iife.js"
+      environment="https://demo-assets.pixotronics.com/pixo/hdr/gem_2.hdr">
+    </webgi-viewer>
+
+    <!-- Panel propio opcional para acciones extra -->
+    <aside class="panel">
+      <h2>Material</h2>
+      <p class="hint">
+        Si tu modelo en iJewel3D tiene definido el configurador de materiales,
+        los botones de variación aparecen dentro del propio visor.
+        Este panel es para acciones personalizadas tuyas.
+      </p>
+      <div id="material-buttons" class="buttons"></div>
+    </aside>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

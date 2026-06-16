@@ -1,0 +1,70 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --accent: #c9a227; /* dorado joyería */
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.topbar {
+  padding: 24px 32px;
+  border-bottom: 1px solid #222;
+}
+.topbar h1 { margin: 0 0 4px; font-size: 1.5rem; }
+.topbar p { margin: 0; color: var(--muted); }
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  padding: 24px 32px;
+  align-items: start;
+}
+
+.viewer {
+  width: 100%;
+  height: 70vh;
+  min-height: 420px;
+  display: block;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 20px;
+}
+.panel h2 { margin-top: 0; }
+.hint { color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+.buttons button {
+  border: 1px solid #333;
+  background: #1f2430;
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .15s ease;
+}
+.buttons button:hover { border-color: var(--accent); }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+}
