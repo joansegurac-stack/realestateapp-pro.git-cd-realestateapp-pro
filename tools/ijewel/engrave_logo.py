@@ -21,6 +21,7 @@ Uso:
 import os
 import sys
 import glob
+import copy
 import math
 import argparse
 import numpy as np
@@ -29,6 +30,7 @@ import trimesh
 from trimesh.visual.material import PBRMaterial
 from trimesh.visual import TextureVisuals
 from PIL import Image
+from pygltflib import GLTF2
 
 from finishes import METALS, FINISHES
 
@@ -176,6 +178,54 @@ def build_glb(ring, logo, metal, finish_name, out_path, angle=0):
 
 
 # --------------------------------------------------------------------------- #
+#  Variantes de color en un MISMO GLB (KHR_materials_variants)                 #
+# --------------------------------------------------------------------------- #
+def add_color_variants(path, colors):
+    """Convierte un GLB (construido con colors[0]) en uno con varios colores
+    conmutables. Solo cambian los materiales metalicos; el logo negro se queda
+    fijo. `colors` = lista de (nombre, (r,g,b))."""
+    g = GLTF2().load(path)
+
+    # materiales coloreables = los metalicos (el logo es metallic=0 -> se ignora)
+    base_idx = [i for i, m in enumerate(g.materials)
+                if (m.pbrMetallicRoughness.metallicFactor or 0) >= 0.99]
+
+    variant_mat = {}  # material base -> [idx de material por color]
+    for bi in base_idx:
+        lst = []
+        for ci, (cname, rgb) in enumerate(colors):
+            if ci == 0:
+                g.materials[bi].pbrMetallicRoughness.baseColorFactor = [*rgb, 1.0]
+                lst.append(bi)
+            else:
+                nm = copy.deepcopy(g.materials[bi])
+                nm.name = f"{cname}"
+                nm.pbrMetallicRoughness.baseColorFactor = [*rgb, 1.0]
+                g.materials.append(nm)
+                lst.append(len(g.materials) - 1)
+        variant_mat[bi] = lst
+
+    # declarar la extension a nivel de documento
+    g.extensions = g.extensions or {}
+    g.extensions["KHR_materials_variants"] = {
+        "variants": [{"name": c[0]} for c in colors]
+    }
+    g.extensionsUsed = list(set((g.extensionsUsed or []) + ["KHR_materials_variants"]))
+
+    # mapear cada primitiva metalica a la variante correspondiente
+    for me in g.meshes:
+        for pr in me.primitives:
+            if pr.material in variant_mat:
+                lst = variant_mat[pr.material]
+                pr.extensions = pr.extensions or {}
+                pr.extensions["KHR_materials_variants"] = {
+                    "mappings": [{"material": lst[ci], "variants": [ci]}
+                                 for ci in range(len(colors))]
+                }
+    g.save(path)
+
+
+# --------------------------------------------------------------------------- #
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ring", nargs="+", required=True, help="uno o varios .3dm de anillo")
@@ -185,6 +235,10 @@ def main():
                     help="un acabado concreto; por defecto se hacen todos")
     ap.add_argument("--all-finishes", action="store_true")
     ap.add_argument("--all-metals", action="store_true")
+    ap.add_argument("--multicolor", action="store_true",
+                    help="3 colores conmutables en un MISMO GLB (oro amarillo/rosa/blanco)")
+    ap.add_argument("--colors", nargs="+", default=["oro_amarillo", "oro_rosa", "oro_blanco"],
+                    choices=list(METALS), help="colores para --multicolor")
     ap.add_argument("--angle", type=float, default=0, help="giro del logo en grados")
     ap.add_argument("--out", default="out", help="carpeta de salida")
     args = ap.parse_args()
@@ -203,12 +257,22 @@ def main():
     for rp in rings:
         ring = load_breps(rp)
         stem = os.path.splitext(os.path.basename(rp))[0]
-        for metal in metals:
+        if args.multicolor:
+            # un GLB por acabado, con los 3 colores conmutables dentro
+            colors = [(c, METALS[c]) for c in args.colors]
             for fin in finishes:
-                out = os.path.join(args.out, f"{stem}__{metal}__{fin}.glb")
-                build_glb(ring, logo, metal, fin, out, args.angle)
-                print("  ->", out)
+                out = os.path.join(args.out, f"{stem}__tricolor__{fin}.glb")
+                build_glb(ring, logo, args.colors[0], fin, out, args.angle)
+                add_color_variants(out, colors)
+                print("  ->", out, "(colores:", ", ".join(args.colors) + ")")
                 n += 1
+        else:
+            for metal in metals:
+                for fin in finishes:
+                    out = os.path.join(args.out, f"{stem}__{metal}__{fin}.glb")
+                    build_glb(ring, logo, metal, fin, out, args.angle)
+                    print("  ->", out)
+                    n += 1
     print(f"\n{n} GLB generados en '{args.out}/'")
 
 

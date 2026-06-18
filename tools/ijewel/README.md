@@ -26,9 +26,21 @@ python engrave_logo.py --ring PERFIL.3dm --logo logo.3dm --metal oro_amarillo
 # 3) lote: los 50 anillos, mismo logo, todos los acabados y metales
 python engrave_logo.py --ring "modelos/*.3dm" --logo logo.3dm \
        --all-finishes --all-metals --out salida
+
+# 4) 3 colores conmutables DENTRO de un mismo GLB (oro amarillo/rosa/blanco)
+python engrave_logo.py --ring PERFIL.3dm --logo logo.3dm --multicolor
 ```
 
 Salida: `out/<anillo>__<metal>__<acabado>.glb`
+(con `--multicolor`: `out/<anillo>__tricolor__<acabado>.glb`)
+
+### Multicolor en un solo GLB
+
+`--multicolor` genera **un GLB por acabado con los 3 colores de oro dentro**,
+conmutables mediante la extensión estándar `KHR_materials_variants`. El logo
+negro NO cambia (queda fijo). El visor debe soportar variantes de material
+(iJewel y la mayoría de configuradores lo hacen). Personaliza con
+`--colors oro_amarillo oro_rosa oro_blanco`.
 
 ## Recomendado para que se vea increíble en iJewel
 
