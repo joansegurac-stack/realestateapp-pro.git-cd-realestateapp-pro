@@ -29,7 +29,28 @@ python engrave_logo.py --ring "modelos/*.3dm" --logo logo.3dm \
 
 # 4) 3 colores conmutables DENTRO de un mismo GLB (oro amarillo/rosa/blanco)
 python engrave_logo.py --ring PERFIL.3dm --logo logo.3dm --multicolor
+
+# 5) GLB MAESTRO: un solo archivo con acabados x colores conmutables
+#    + grabado laser HUNDIDO. Es el recomendado para subir a iJewel.
+python engrave_logo.py --ring PERFIL.3dm --logo logo.3dm --master
 ```
+
+### GLB maestro (`--master`) — RECOMENDADO
+
+Genera **un único GLB** que contiene:
+
+- **Acabados conmutables:** Brillo, Mate, Rayado vertical, Martillado
+  (personalizable con `--master-finishes`).
+- **Colores conmutables:** oro amarillo / rosa / blanco (`--colors`).
+- Ambos combinados como variantes `KHR_materials_variants`
+  (p. ej. "Martillado · Oro rosa"). El selector del visor las lista todas.
+- **Logo grabado láser HUNDIDO hacia dentro:** se resta el logo del anillo
+  (boolean) creando un hueco real, relleno en negro mate y ligeramente
+  recesado. No sobresale hacia el dedo.
+- **Cara interior siempre pulida** y **modelo centrado** para girar 360°.
+
+`--master-finishes` admite: `pulido` (Brillo), `satinado`, `mate`,
+`martillado`, `rayado_vertical`, `rallado` (rayado horizontal).
 
 Salida: `out/<anillo>__<metal>__<acabado>.glb`
 (con `--multicolor`: `out/<anillo>__tricolor__<acabado>.glb`)

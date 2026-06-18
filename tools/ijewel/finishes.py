@@ -21,11 +21,14 @@ METALS = {
 # --- Acabados ---------------------------------------------------------------
 # roughness:  0 = espejo, 1 = totalmente mate
 # normal_map: nombre del PNG de relieve (None = superficie lisa)
-# tile:       cuantas veces se repite el patron alrededor del anillo
+# tile:       repeticiones extra del patron alrededor del aro (los PNG ya van
+#             con proporcion correcta, asi que normalmente 1)
+# label:      nombre bonito para el selector de variantes
 FINISHES = {
-    "pulido":      {"roughness": 0.06, "normal_map": None,            "tile": 1},
-    "satinado":    {"roughness": 0.35, "normal_map": None,            "tile": 1},
-    "mate":        {"roughness": 0.80, "normal_map": None,            "tile": 1},
-    "martillado":  {"roughness": 0.28, "normal_map": "hammered.png",  "tile": 8},
-    "rallado":     {"roughness": 0.40, "normal_map": "brushed.png",   "tile": 1},
+    "pulido":          {"roughness": 0.06, "normal_map": None,                  "tile": 1, "label": "Brillo"},
+    "satinado":        {"roughness": 0.35, "normal_map": None,                  "tile": 1, "label": "Satinado"},
+    "mate":            {"roughness": 0.80, "normal_map": None,                  "tile": 1, "label": "Mate"},
+    "martillado":      {"roughness": 0.28, "normal_map": "hammered.png",        "tile": 1, "label": "Martillado"},
+    "rayado_vertical": {"roughness": 0.40, "normal_map": "brushed_vertical.png","tile": 1, "label": "Rayado vertical"},
+    "rallado":         {"roughness": 0.40, "normal_map": "brushed.png",         "tile": 1, "label": "Rayado horizontal"},
 }

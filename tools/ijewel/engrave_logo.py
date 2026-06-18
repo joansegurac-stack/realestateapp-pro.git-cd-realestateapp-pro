@@ -226,6 +226,163 @@ def add_color_variants(path, colors):
 
 
 # --------------------------------------------------------------------------- #
+#  Grabado HUNDIDO hacia dentro (boolean) + GLB maestro multi-acabado          #
+# --------------------------------------------------------------------------- #
+def prepare_engraving(ring, logo, angle=0, recess=0.05):
+    """Resta el logo del anillo para crear el HUECO del grabado y devuelve el
+    'tapon' negro que rellena ese hueco, ligeramente hundido (look laser hacia
+    dentro). Devuelve (anillo_con_hueco, tapon)."""
+    import trimesh.transformations as tf
+    lg = trimesh.Trimesh(*logo[0][:2], process=True)
+    if angle:
+        lg.apply_transform(tf.rotation_matrix(math.radians(angle), [0, 1, 0]))
+    lr = np.hypot(lg.vertices[:, 0], lg.vertices[:, 2])
+    lrmin, lrmax = lr.min(), lr.max()
+
+    rings_out, plugs = [], []
+    for (V, F, N) in ring:
+        rr = np.hypot(V[:, 0], V[:, 2])
+        if rr.min() < lrmax and rr.max() > lrmin:          # el logo penetra esta capa
+            shell = trimesh.Trimesh(V, F, process=True)
+            cut = shell.difference(lg)                       # anillo - logo = hueco
+            inter = shell.intersection(lg)                  # parte embebida = tapon
+            rings_out.append((np.asarray(cut.vertices), np.asarray(cut.faces), None))
+            if inter is not None and len(inter.faces):
+                plugs.append(inter)
+        else:
+            rings_out.append((V, F, N))
+
+    plug = None
+    if plugs:
+        pm = trimesh.util.concatenate(plugs)
+        if recess:                                          # hundir radialmente hacia el metal
+            rad = pm.vertices.copy(); rad[:, 1] = 0
+            rad /= np.linalg.norm(rad, axis=1, keepdims=True) + 1e-9
+            pm.vertices = pm.vertices + rad * recess
+        plug = (np.asarray(pm.vertices), np.asarray(pm.faces), None)
+    return rings_out, plug
+
+
+def _prettify(name):
+    return name.replace("_", " ").capitalize()
+
+
+def build_master_glb(ring, plug, finishes, colors, out_path):
+    """UN GLB con todos los acabados x colores conmutables (KHR_materials_variants)
+    y el logo grabado en negro fijo."""
+    textured = [f for f in finishes if FINISHES[f]["normal_map"]]
+    nmaps = {f: Image.open(os.path.join(TEX_DIR, FINISHES[f]["normal_map"])).convert("RGB")
+             for f in textured}
+    base0 = [*colors[0][1], 1.0]
+
+    scene = trimesh.Scene()
+    ei = 0
+    for i, (V, F, N) in enumerate(ring):
+        Fin, Fext = split_interior(V, F)
+        if len(Fext):
+            me = trimesh.Trimesh(vertices=V, faces=Fext, process=False)
+            mat = PBRMaterial(baseColorFactor=base0, metallicFactor=1.0, roughnessFactor=0.3)
+            if ei < len(textured):                          # incrusta la textura en el GLB
+                f = textured[ei]; mat.normalTexture = nmaps[f]; mat.name = f"EMB::{f}"
+            me.visual = TextureVisuals(uv=cylindrical_uv(V, 1), material=mat)
+            scene.add_geometry(me, node_name=f"RING{i}_EXT")
+            ei += 1
+        if len(Fin):
+            mi = trimesh.Trimesh(vertices=V, faces=Fin, process=False)
+            mi.visual = TextureVisuals(uv=cylindrical_uv(V, 1),
+                                       material=PBRMaterial(baseColorFactor=base0,
+                                                            metallicFactor=1.0, roughnessFactor=0.05))
+            scene.add_geometry(mi, node_name=f"RING{i}_INT")
+
+    if plug is not None:
+        V, F, N = plug
+        pm = trimesh.Trimesh(vertices=V, faces=F, process=False)
+        pm.visual = TextureVisuals(uv=cylindrical_uv(V, 1),
+                                   material=PBRMaterial(baseColorFactor=[0.02, 0.02, 0.02, 1.0],
+                                                        metallicFactor=0.0, roughnessFactor=0.55))
+        scene.add_geometry(pm, node_name="LOGO_LASER")
+
+    center = scene.bounds.mean(axis=0)                       # centrar -> giro 360 libre
+    T = np.eye(4); T[:3, 3] = -center
+    for name in list(scene.geometry):
+        scene.graph.update(frame_to=name, matrix=T)
+
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    scene.export(out_path)
+    _wire_master_variants(out_path, finishes, colors)
+    return out_path
+
+
+def _wire_master_variants(path, finishes, colors):
+    from pygltflib import Material, PbrMetallicRoughness, NormalMaterialTexture
+    g = GLTF2().load(path)
+
+    # indice de textura incrustado por acabado (materiales EMB::<finish>)
+    tex_index = {}
+    for m in g.materials:
+        if m.name and m.name.startswith("EMB::") and m.normalTexture is not None:
+            tex_index[m.name.split("::", 1)[1]] = m.normalTexture.index
+
+    # rol de cada mesh por el nombre del nodo
+    mesh_role = {}
+    for nd in g.nodes:
+        if nd.mesh is None:
+            continue
+        nm = nd.name or ""
+        mesh_role[nd.mesh] = ("ext" if "EXT" in nm else
+                              "int" if "INT" in nm else
+                              "logo" if "LOGO" in nm else "other")
+
+    # reconstruir materiales (las texturas/imagenes se conservan por indice)
+    g.materials = []
+
+    def add_mat(rgb, rough, texidx=None, metal=1.0, name=None):
+        pbr = PbrMetallicRoughness(baseColorFactor=[*rgb, 1.0],
+                                   metallicFactor=metal, roughnessFactor=rough)
+        mat = Material(name=name, pbrMetallicRoughness=pbr)
+        if texidx is not None:
+            mat.normalTexture = NormalMaterialTexture(index=texidx)
+        g.materials.append(mat)
+        return len(g.materials) - 1
+
+    ext_mat, int_mat = {}, {}
+    for f in finishes:
+        ti = tex_index.get(f) if FINISHES[f]["normal_map"] else None
+        for cn, rgb in colors:
+            ext_mat[(f, cn)] = add_mat(rgb, FINISHES[f]["roughness"], ti, name=f"{f}|{cn}")
+    for cn, rgb in colors:
+        int_mat[cn] = add_mat(rgb, 0.05, name=f"interior|{cn}")
+    black = add_mat((0.02, 0.02, 0.02), 0.55, metal=0.0, name="logo_laser")
+
+    # lista de variantes (acabado x color) y su indice
+    variants, varindex, vi = [], {}, 0
+    for f in finishes:
+        for cn, rgb in colors:
+            variants.append({"name": f"{FINISHES[f]['label']} · {_prettify(cn)}"})
+            varindex[(f, cn)] = vi; vi += 1
+    g.extensions = g.extensions or {}
+    g.extensions["KHR_materials_variants"] = {"variants": variants}
+    g.extensionsUsed = list(set((g.extensionsUsed or []) + ["KHR_materials_variants"]))
+
+    # mapear cada primitiva a la variante correspondiente
+    for mi, me in enumerate(g.meshes):
+        role = mesh_role.get(mi, "other")
+        for pr in me.primitives:
+            if role == "logo":
+                pr.material = black
+                continue
+            mappings = []
+            for f in finishes:
+                for cn, rgb in colors:
+                    m = ext_mat[(f, cn)] if role == "ext" else int_mat[cn]
+                    mappings.append({"material": m, "variants": [varindex[(f, cn)]]})
+            pr.material = mappings[0]["material"]
+            pr.extensions = pr.extensions or {}
+            pr.extensions["KHR_materials_variants"] = {"mappings": mappings}
+    g.save(path)
+
+
+# --------------------------------------------------------------------------- #
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ring", nargs="+", required=True, help="uno o varios .3dm de anillo")
@@ -237,8 +394,13 @@ def main():
     ap.add_argument("--all-metals", action="store_true")
     ap.add_argument("--multicolor", action="store_true",
                     help="3 colores conmutables en un MISMO GLB (oro amarillo/rosa/blanco)")
+    ap.add_argument("--master", action="store_true",
+                    help="UN solo GLB: acabados x colores conmutables + grabado hundido")
+    ap.add_argument("--master-finishes", nargs="+",
+                    default=["pulido", "mate", "rayado_vertical", "martillado"],
+                    choices=list(FINISHES), help="acabados del GLB maestro")
     ap.add_argument("--colors", nargs="+", default=["oro_amarillo", "oro_rosa", "oro_blanco"],
-                    choices=list(METALS), help="colores para --multicolor")
+                    choices=list(METALS), help="colores conmutables")
     ap.add_argument("--angle", type=float, default=0, help="giro del logo en grados")
     ap.add_argument("--out", default="out", help="carpeta de salida")
     args = ap.parse_args()
@@ -257,7 +419,15 @@ def main():
     for rp in rings:
         ring = load_breps(rp)
         stem = os.path.splitext(os.path.basename(rp))[0]
-        if args.multicolor:
+        if args.master:
+            colors = [(c, METALS[c]) for c in args.colors]
+            ring_eng, plug = prepare_engraving(ring, logo, args.angle)
+            out = os.path.join(args.out, f"{stem}__master.glb")
+            build_master_glb(ring_eng, plug, args.master_finishes, colors, out)
+            print("  ->", out, "| acabados:", ", ".join(args.master_finishes),
+                  "| colores:", ", ".join(args.colors))
+            n += 1
+        elif args.multicolor:
             # un GLB por acabado, con los 3 colores conmutables dentro
             colors = [(c, METALS[c]) for c in args.colors]
             for fin in finishes:
