@@ -88,6 +88,25 @@ def rot_y(V, deg):
     return V @ R.T
 
 
+def split_interior(V, F):
+    """Separa triangulos de la PARED INTERIOR (contacto con el dedo) del resto.
+
+    Interior = normal apuntando hacia el eje (dot con radial exterior < 0) y
+    radio menor que el radio medio. Devuelve dos arrays de caras (int, ext).
+    """
+    cen = V[F].mean(axis=1)
+    r = np.hypot(cen[:, 0], cen[:, 2])
+    tri = V[F]
+    gn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    gn /= np.linalg.norm(gn, axis=1, keepdims=True) + 1e-9
+    out = cen.copy(); out[:, 1] = 0
+    out /= np.linalg.norm(out, axis=1, keepdims=True) + 1e-9
+    dot = (gn * out).sum(axis=1)
+    rmid = (r.min() + r.max()) / 2
+    interior = (dot < -0.3) & (r < rmid)
+    return F[interior], F[~interior]
+
+
 # --------------------------------------------------------------------------- #
 #  Construccion de un GLB para un acabado concreto                            #
 # --------------------------------------------------------------------------- #
@@ -102,36 +121,54 @@ def build_glb(ring, logo, metal, finish_name, out_path, angle=0):
         if os.path.exists(p):
             nmap = Image.open(p).convert("RGB")
 
-    def material():
+    def ext_material():
+        # acabado elegido (exterior del anillo)
         return PBRMaterial(
-            baseColorFactor=base,
-            metallicFactor=1.0,
-            roughnessFactor=spec["roughness"],
-            normalTexture=nmap,
+            baseColorFactor=base, metallicFactor=1.0,
+            roughnessFactor=spec["roughness"], normalTexture=nmap,
+        )
+
+    def polished_material():
+        # cara interior SIEMPRE pulida/brillo, sea cual sea el acabado exterior
+        return PBRMaterial(
+            baseColorFactor=base, metallicFactor=1.0, roughnessFactor=0.05,
         )
 
     scene = trimesh.Scene()
 
-    # --- anillo (todas sus superficies) ---
+    # --- anillo: exterior con acabado + pared interior SIEMPRE pulida ---
     for i, (V, F, N) in enumerate(ring):
-        mesh = trimesh.Trimesh(vertices=V, faces=F, vertex_normals=N, process=False)
-        uv = cylindrical_uv(V, spec["tile"])
-        mesh.visual = TextureVisuals(uv=uv, material=material())
-        scene.add_geometry(mesh, node_name=f"Ring_{i}")
+        Fin, Fext = split_interior(V, F)
+        if len(Fext):
+            me = trimesh.Trimesh(vertices=V, faces=Fext, vertex_normals=N, process=False)
+            me.visual = TextureVisuals(uv=cylindrical_uv(V, spec["tile"]),
+                                       material=ext_material())
+            scene.add_geometry(me, node_name=f"Ring_{i}_ext")
+        if len(Fin):
+            mi = trimesh.Trimesh(vertices=V, faces=Fin, vertex_normals=N, process=False)
+            mi.visual = TextureVisuals(uv=cylindrical_uv(V, 1),
+                                       material=polished_material())
+            scene.add_geometry(mi, node_name=f"Ring_{i}_interior_pulido")
 
-    # --- logo (1 solo; los dos Breps del .3dm son duplicados) ---
+    # --- logo: grabado laser NEGRO (mate, no metalico) ---
     V, F, N = logo[0]
     V = rot_y(V, angle)
     lmesh = trimesh.Trimesh(vertices=V, faces=F, vertex_normals=rot_y(N, angle), process=False)
-    # el logo siempre liso y un pelin mas oscuro para que "lea" como grabado
     lmesh.visual = TextureVisuals(
         uv=cylindrical_uv(V, 1),
         material=PBRMaterial(
-            baseColorFactor=[base[0]*0.82, base[1]*0.82, base[2]*0.82, 1.0],
-            metallicFactor=1.0, roughnessFactor=max(spec["roughness"], 0.4),
+            baseColorFactor=[0.02, 0.02, 0.02, 1.0],  # negro
+            metallicFactor=0.0,                        # no metal -> look grabado laser
+            roughnessFactor=0.55,
         ),
     )
-    scene.add_geometry(lmesh, node_name="Logo_Interior")
+    scene.add_geometry(lmesh, node_name="Logo_Laser_Negro")
+
+    # centrar en el CENTRO del anillo para que orbite libre en todas direcciones
+    center = scene.bounds.mean(axis=0)
+    T = np.eye(4); T[:3, 3] = -center
+    for name in list(scene.geometry):
+        scene.graph.update(frame_to=name, matrix=T)
 
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     scene.export(out_path)

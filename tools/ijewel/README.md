@@ -42,6 +42,17 @@ tienes dos formas de trabajar:
   (`hammered.png`, `brushed.png`) como **Bump/Normal Map** sobre el preset que
   elijas. Son tileables y envuelven el aro.
 
+## Reglas fijas del modelo
+
+- **Logo = grabado láser negro:** material negro mate y no metálico (no se ve
+  como metal, sino como marcado láser).
+- **Cara interior siempre pulida:** aunque el exterior sea satinado, rayado,
+  rugoso o mate, la pared interior (contacto con el dedo, donde va el logo) se
+  exporta **pulida/brillo**. La separación interior/exterior se calcula por
+  geometría (normal hacia el eje y radio < radio medio).
+- **Centrado en el origen:** el GLB se centra en el centro del anillo para que
+  **orbite libre en todas direcciones** en cualquier visor.
+
 ## Acabados (`finishes.py`)
 
 | Acabado    | roughness | relieve        |
