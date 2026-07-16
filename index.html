@@ -4,14 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Visor 3D iJewel — Configurador de materiales</title>
-
-  <!--
-    iJewel3D Viewer (webgi)
-    Cargamos el bundle del visor desde el CDN oficial de iJewel.
-    Si prefieres usar NPM en el futuro: npm i webgi  (ver docs.ijewel3d.com)
-  -->
-  <script type="module" src="https://releases.ijewel3d.com/libs/webgi-v0/bundle-0.22.0.js"></script>
-
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -22,32 +14,37 @@
 
   <main class="layout">
     <!--
-      EL VISOR
-      - src: el bundle del visor (NO el modelo).
-      - environment: iluminación HDR (puedes usar la de iJewel o una propia).
-      - El modelo 3D se carga desde JS (ver app.js) para tener control total.
-      El configurador de materiales aparece automáticamente cuando el modelo
-      incluye el MaterialConfiguratorPlugin configurado en iJewel3D.
+      EL VISOR — método verificado: iframe embed generado por iJewel
+      (pestaña "Embed" del Playground → "Copy HTML code").
+      El configurador de materiales, si el modelo lo tiene configurado,
+      aparece DENTRO de este iframe; al ser de otro origen, no se puede
+      controlar desde nuestro JS (por eso ya no hay app.js aquí).
     -->
-    <webgi-viewer
-      id="ijewel-viewer"
+    <iframe
+      title="2 basico medica caña plano.glb"
       class="viewer"
-      src="https://releases.ijewel3d.com/libs/mini-viewer/0.6.8/bundle.nowebgi.iife.js"
-      environment="https://demo-assets.pixotronics.com/pixo/hdr/gem_2.hdr">
-    </webgi-viewer>
+      frameborder="0"
+      mozallowfullscreen="true"
+      webkitallowfullscreen="true"
+      xr-spatial-tracking
+      execution-while-out-of-viewport
+      execution-while-not-rendered
+      web-share
+      allow="camera; autoplay; fullscreen; xr-spatial-tracking; web-share"
+      width="1280"
+      height="720"
+      src="https://ijewel3d.com/drive/files/JxaASfzvTxOAxZxy2Ijw0g/embedded?slug=JxaASfzvTxOAxZxy2Ijw0g&isRemoveLogoLink=true">
+    </iframe>
 
-    <!-- Panel propio opcional para acciones extra -->
     <aside class="panel">
       <h2>Material</h2>
       <p class="hint">
-        Si tu modelo en iJewel3D tiene definido el configurador de materiales,
-        los botones de variación aparecen dentro del propio visor.
-        Este panel es para acciones personalizadas tuyas.
+        El configurador de materiales aparece dentro del propio visor si tu
+        modelo tiene el MaterialConfiguratorPlugin configurado en iJewel3D.
+        Al ser un iframe de otro origen, no podemos añadir botones propios
+        que lo controlen desde fuera.
       </p>
-      <div id="material-buttons" class="buttons"></div>
     </aside>
   </main>
-
-  <script type="module" src="app.js"></script>
 </body>
 </html>

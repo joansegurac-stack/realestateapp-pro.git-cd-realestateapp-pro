@@ -8,8 +8,8 @@ en tiempo real.
 
 | Archivo | Para qué sirve |
 |---|---|
-| `index.html`, `styles.css`, `app.js` | **Página de prueba independiente** (HTML simple). Úsala para testear tus modelos rápido, sin Lovable. Abre `index.html` en el navegador. |
-| `lovable/IJewelViewer.tsx` | **Componente React** listo para pegar en tu proyecto de **Lovable**, usando el visor de **iJewel3D**. |
+| `index.html`, `styles.css` | **Página de prueba independiente** (HTML simple). Abre `index.html` en el navegador para ver el embed de iJewel funcionando. |
+| `lovable/IJewelEmbed.tsx` | **Componente React** listo para pegar en tu proyecto de **Lovable** — método de embed VERIFICADO (iframe) para tu cuenta de iJewel3D. |
 | `lovable/CustomJewelryViewer.tsx` | **Visor propio** (Three.js vía `@react-three/fiber`), en paralelo al de iJewel. Color, iluminación y ancho de banda en tiempo real. |
 | `lovable/GlbUploader.tsx` | Componente para subir `.glb` a Supabase Storage y alimentar al visor propio. |
 | `supabase/schema.sql` | Tabla `jewelry_models` + bucket de Storage + políticas RLS que necesita `GlbUploader.tsx`. |
@@ -22,29 +22,37 @@ una app en **React**. Este repositorio de GitHub está separado de ese proyecto.
 Tienes dos caminos:
 
 ### Opción A — Editar directo en Lovable (más rápido)
-1. En Lovable, crea `src/components/IJewelViewer.tsx` y pega el contenido de
-   `lovable/IJewelViewer.tsx`.
+1. En Lovable, crea `src/components/IJewelEmbed.tsx` y pega el contenido de
+   `lovable/IJewelEmbed.tsx`.
 2. Úsalo en la página donde quieras el visor:
    ```tsx
-   import IJewelViewer from "@/components/IJewelViewer";
+   import IJewelEmbed from "@/components/IJewelEmbed";
 
-   <IJewelViewer modelUrl="https://.../tu-modelo.glb" />
+   <IJewelEmbed slug="JxaASfzvTxOAxZxy2Ijw0g" title="Mi anillo" />
    ```
+   El `slug` es la parte final de la URL de tu archivo en iJewel Drive
+   (`/drive/files/<slug>/...`).
 
 ### Opción B — Conectar Lovable con GitHub (para que yo edite el código real)
 En Lovable: menú **GitHub → Connect to GitHub**. Eso crea/sincroniza un repo con
 el código de tu app. Si me pasas ese repo, trabajo directamente sobre él.
 
-## Pasos para que funcione el cambio de materiales
+## Cómo funciona el embed de iJewel (método verificado)
 
-1. **Sube tus modelos** a iJewel3D y configura el **MaterialConfiguratorPlugin**
-   (define las variaciones: oro amarillo, blanco, platino…).
-2. Copia la **URL del modelo** (.glb) desde iJewel3D Drive.
-3. Pásala como `modelUrl` al componente / a `MODEL_URL` en `app.js`.
+Tu cuenta de iJewel3D usa el método de **iframe embed**: en el Playground,
+pestaña **"Embed"** → botón **"Copy HTML code"** (o "View code"), te da un
+`<iframe>` cuyo `src` apunta a una página alojada por iJewel
+(`https://ijewel3d.com/drive/files/<slug>/embedded?slug=<slug>`). Esa página
+ya trae el modelo y, si está configurado, el **MaterialConfiguratorPlugin**
+con sus variaciones (oro amarillo, blanco, platino…) integrados dentro del
+propio iframe.
 
-El configurador de materiales aparece **dentro del propio visor** cuando el modelo
-tiene esa configuración. Los botones extra en `app.js` son opcionales, por si
-quieres tu propia UI de materiales fuera del visor.
+Al ser un iframe de otro origen, **no se puede controlar desde fuera con
+JS** (no hay acceso a `viewer.getPlugin(...)` como en una integración por
+bundle/web-component). Los botones de material, si los quieres fuera del
+visor, tendrían que ser variaciones que el propio iJewel exponga por URL o
+mensajes `postMessage` — revisa la documentación de embedding si tu cuenta
+lo soporta.
 
 ## Documentación oficial (iJewel3D)
 - Visor: https://docs.ijewel3d.com/viewer/introduction.html
@@ -57,7 +65,13 @@ quieres tu propia UI de materiales fuera del visor.
 (`@react-three/fiber` + `@react-three/drei`, el mismo motor que usa iJewel por
 debajo) que permite, en tiempo real: cambiar color/acabado del metal, ajustar
 la iluminación (exposición sobre un HDRI), y cambiar el ancho de la pieza.
-No sustituye a `IJewelViewer.tsx` — conviven, para poder comparar calidad.
+No sustituye al embed de iJewel — conviven, para poder comparar calidad.
+
+**Importante:** el iframe embed de iJewel (`IJewelEmbed.tsx`) NO expone una
+URL directa del `.glb` — solo carga su propia página con el modelo dentro.
+Para `CustomJewelryViewer.tsx` necesitas el archivo `.glb` en sí (por eso
+existe `GlbUploader.tsx`: para subir tus modelos a tu propio Storage y
+obtener una URL directa que Three.js sí pueda cargar).
 
 ### 1. Instalar dependencias en tu proyecto de Lovable
 ```
